@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CSV K-map Visualizer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, sans-serif;
+      --border: #9aa0a6;
+      --green: #9be7a2;
+      --green-dark: #175c25;
+      --red: #ffd1d1;
+      --muted: #5f6368;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: #202124;
+      background: #f7f8fa;
+    }
+
+    main {
+      max-width: 90rem;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    h1 {
+      margin: 0 0 0.25rem;
+      font-size: 1.7rem;
+    }
+
+    .intro,
+    .hint {
+      color: var(--muted);
+    }
+
+    .panel {
+      margin-top: 1rem;
+      padding: 1rem;
+      border: 1px solid #d5d9de;
+      border-radius: 0.5rem;
+      background: white;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+      gap: 0.75rem;
+      align-items: end;
+    }
+
+    label {
+      display: grid;
+      gap: 0.3rem;
+      font-weight: 650;
+    }
+
+    input,
+    select {
+      width: 100%;
+      min-height: 2.5rem;
+      padding: 0.45rem;
+      border: 1px solid var(--border);
+      border-radius: 0.3rem;
+      background: white;
+      font: inherit;
+    }
+
+    #input-signals {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    #message {
+      min-height: 1.5rem;
+      margin: 0.75rem 0 0;
+      font-weight: 650;
+    }
+
+    #message.error {
+      color: #a50e0e;
+    }
+
+    #message.ok {
+      color: var(--green-dark);
+    }
+
+    #map-wrap {
+      overflow-x: auto;
+    }
+
+    .outer-layout {
+      display: grid;
+      grid-template-columns: 3.5rem minmax(0, 1fr);
+      grid-template-rows: 3.5rem auto;
+      width: max-content;
+      min-width: 100%;
+    }
+
+    .outer-columns,
+    .outer-rows {
+      display: grid;
+      gap: 1rem;
+      font: 650 0.82rem ui-monospace, monospace;
+    }
+
+    .outer-columns {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .outer-rows {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .outer-bit {
+      display: grid;
+      place-items: center;
+    }
+
+    .maps {
+      display: grid;
+      gap: 1rem;
+      width: max-content;
+      min-width: 100%;
+    }
+
+    .outer-layout > .maps {
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    .map-panel {
+      padding: 0.6rem;
+      border: 1px solid #c9cdd2;
+      border-radius: 0.35rem;
+      background: #fff;
+    }
+
+    .map-title {
+      min-height: 1.25rem;
+      margin-bottom: 0.25rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+
+    table {
+      border-collapse: collapse;
+      margin: 0 auto;
+    }
+
+    th,
+    td {
+      width: 3.5rem;
+      height: 3.25rem;
+      border: 1px solid var(--border);
+      text-align: center;
+    }
+
+    th {
+      height: 2rem;
+      background: #eef0f2;
+      font: 650 0.82rem ui-monospace, monospace;
+    }
+
+    .axis-corner {
+      position: relative;
+      width: 3.5rem;
+      min-width: 3.5rem;
+      height: 3.5rem;
+      padding: 0;
+      background:
+        linear-gradient(
+          to top right,
+          transparent 49%,
+          #202124 49.5%,
+          #202124 50.5%,
+          transparent 51%
+        );
+    }
+
+    th.corner {
+      border-top-color: transparent;
+      border-left-color: transparent;
+    }
+
+    .outer-corner {
+      grid-column: 1;
+      grid-row: 1;
+      align-self: end;
+      justify-self: end;
+    }
+
+    .corner-row,
+    .corner-column {
+      position: absolute;
+      max-width: 80%;
+      overflow: hidden;
+      color: #202124;
+      font-size: 0.8rem;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .corner-row {
+      bottom: 0.15rem;
+      left: 0.15rem;
+      text-align: left;
+    }
+
+    .corner-column {
+      top: 0.15rem;
+      right: 0.15rem;
+      text-align: right;
+    }
+
+    td.on {
+      color: var(--green-dark);
+      background: var(--green);
+      font-weight: 800;
+    }
+
+    td.conflict {
+      color: #8b0000;
+      background: var(--red);
+      font-weight: 800;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>CSV K-map Visualizer</h1>
+    <div class="intro">
+      Load a 0/1/X truth table, choose 2–8 inputs, and choose one output.
+    </div>
+
+    <section class="panel">
+      <label>
+        CSV truth table
+        <input id="csv-file" type="file" accept=".csv,text/csv">
+      </label>
+      <div id="message" role="status" aria-live="polite">
+        Choose a CSV file to begin.
+      </div>
+    </section>
+
+    <section id="configuration" class="panel" hidden>
+      <div class="controls">
+        <label>
+          Number of inputs
+          <select id="dimension-count"></select>
+        </label>
+        <label>
+          Output
+          <select id="output-signal"></select>
+        </label>
+      </div>
+      <div id="input-signals"></div>
+      <p class="hint">
+        Input order sets the map axes. The first inputs set row bits, then
+        column bits. Inputs after the first four arrange the map grid.
+      </p>
+    </section>
+
+    <section id="visualization" class="panel" hidden>
+      <div id="map-wrap"></div>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+
+    const gray = {
+      0: [""],
+      1: ["1", "0"],
+      2: ["11", "10", "00", "01"],
+    };
+
+    const fileInput = document.querySelector("#csv-file");
+    const configuration = document.querySelector("#configuration");
+    const visualization = document.querySelector("#visualization");
+    const dimensionSelect = document.querySelector("#dimension-count");
+    const outputSelect = document.querySelector("#output-signal");
+    const inputSignals = document.querySelector("#input-signals");
+    const message = document.querySelector("#message");
+    const mapWrap = document.querySelector("#map-wrap");
+
+    let table = null;
+    const inputSelects = [];
+
+    for (let count = 2; count <= 8; count += 1) {
+      const option = document.createElement("option");
+      option.value = count;
+      option.textContent = count;
+      dimensionSelect.append(option);
+    }
+
+    fileInput.addEventListener("change", loadFile);
+    dimensionSelect.addEventListener("change", updateInputCount);
+    outputSelect.addEventListener("change", render);
+
+    async function loadFile() {
+      const file = fileInput.files[0];
+      if (!file) {
+        return;
+      }
+
+      try {
+        table = readTable(await file.text());
+        buildConfiguration();
+        configuration.hidden = false;
+        updateInputCount();
+      } catch (error) {
+        table = null;
+        configuration.hidden = true;
+        visualization.hidden = true;
+        showMessage(error.message, "error");
+      }
+    }
+
+    function readTable(text) {
+      const records = parseCsv(text.replace(/^\uFEFF/, ""));
+      if (records.length < 2) {
+        throw new Error("CSV needs a header and at least one data row.");
+      }
+
+      const headers = records[0].map((cell) => cell.trim());
+      if (headers.some((name) => name === "")) {
+        throw new Error("CSV header names cannot be empty.");
+      }
+      if (new Set(headers).size !== headers.length) {
+        throw new Error("CSV header names must be unique.");
+      }
+      if (headers.length < 3) {
+        throw new Error("CSV needs at least two inputs and one output.");
+      }
+
+      const rows = records.slice(1).map((record, index) => {
+        if (record.length !== headers.length) {
+          throw new Error(
+            `CSV line ${index + 2} has ${record.length} cells; ` +
+            `expected ${headers.length}.`,
+          );
+        }
+        const values = record.map((cell) => cell.trim().toUpperCase());
+        const invalid = values.find((value) => !["0", "1", "X"].includes(
+          value,
+        ));
+        if (invalid !== undefined) {
+          throw new Error(
+            `CSV line ${index + 2}: use only 0, 1, or X.`,
+          );
+        }
+        return Object.fromEntries(headers.map((name, i) => [name, values[i]]));
+      });
+
+      return {headers, rows};
+    }
+
+    function parseCsv(text) {
+      const records = [];
+      let record = [];
+      let cell = "";
+      let quoted = false;
+      let closedQuote = false;
+
+      for (let i = 0; i < text.length; i += 1) {
+        const character = text[i];
+        if (quoted) {
+          if (character === '"' && text[i + 1] === '"') {
+            cell += '"';
+            i += 1;
+          } else if (character === '"') {
+            quoted = false;
+            closedQuote = true;
+          } else {
+            cell += character;
+          }
+          continue;
+        }
+
+        if (character === '"') {
+          if (cell !== "" || closedQuote) {
+            throw new Error("CSV contains an invalid quote.");
+          }
+          quoted = true;
+        } else if (character === ",") {
+          record.push(cell);
+          cell = "";
+          closedQuote = false;
+        } else if (character === "\n") {
+          record.push(cell);
+          if (record.some((value) => value.trim() !== "")) {
+            records.push(record);
+          }
+          record = [];
+          cell = "";
+          closedQuote = false;
+        } else if (character !== "\r") {
+          if (closedQuote && character.trim() !== "") {
+            throw new Error("CSV contains text after a closing quote.");
+          }
+          cell += character;
+        }
+      }
+
+      if (quoted) {
+        throw new Error("CSV contains an unclosed quote.");
+      }
+      record.push(cell);
+      if (record.some((value) => value.trim() !== "")) {
+        records.push(record);
+      }
+      return records;
+    }
+
+    function buildConfiguration() {
+      outputSelect.replaceChildren();
+      inputSignals.replaceChildren();
+      inputSelects.length = 0;
+
+      table.headers.forEach((name) => {
+        outputSelect.append(makeOption(name));
+      });
+      outputSelect.value = table.headers.at(-1);
+
+      for (let index = 0; index < 8; index += 1) {
+        const label = document.createElement("label");
+        label.textContent = `Input ${index + 1}`;
+        const select = document.createElement("select");
+        select.dataset.index = index;
+        table.headers.forEach((name) => select.append(makeOption(name)));
+        select.value = table.headers[index] ?? table.headers[0];
+        select.addEventListener("change", render);
+        label.append(select);
+        inputSignals.append(label);
+        inputSelects.push(select);
+      }
+
+      const maximum = Math.min(8, table.headers.length - 1);
+      [...dimensionSelect.options].forEach((option) => {
+        option.disabled = Number(option.value) > maximum;
+      });
+      dimensionSelect.value = Math.min(4, maximum);
+    }
+
+    function makeOption(name) {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      return option;
+    }
+
+    function updateInputCount() {
+      const count = Number(dimensionSelect.value);
+      inputSelects.forEach((select, index) => {
+        select.parentElement.hidden = index >= count;
+      });
+      render();
+    }
+
+    function render() {
+      if (!table) {
+        return;
+      }
+
+      const count = Number(dimensionSelect.value);
+      const inputs = inputSelects.slice(0, count).map((select) => select.value);
+      const output = outputSelect.value;
+      const duplicate = inputs.find(
+        (name, index) => inputs.indexOf(name) !== index,
+      );
+
+      if (duplicate) {
+        visualization.hidden = true;
+        showMessage(`Each input must be unique; ${duplicate} is repeated.`,
+          "error");
+        return;
+      }
+      if (inputs.includes(output)) {
+        visualization.hidden = true;
+        showMessage("The output cannot also be a map input.", "error");
+        return;
+      }
+
+      const values = collectValues(inputs, output);
+      mapWrap.replaceChildren(buildMaps(inputs, values));
+      visualization.hidden = false;
+
+      let on = 0;
+      let conflicts = 0;
+      values.forEach((states) => {
+        on += states.size === 1 && states.has("1") ? 1 : 0;
+        conflicts += states.size > 1 ? 1 : 0;
+      });
+      const total = 2 ** count;
+      const known = [...values.values()].filter(
+        (states) => states.size === 1,
+      ).length;
+      const summary = `${on} true, ${total - known - conflicts} unknown, ` +
+        `${conflicts} conflict${conflicts === 1 ? "" : "s"}.`;
+      showMessage(summary, conflicts ? "error" : "ok");
+    }
+
+    function collectValues(inputs, output) {
+      const values = new Map();
+      table.rows.forEach((row) => {
+        if (row[output] === "X") {
+          return;
+        }
+        expandBits(inputs.map((name) => row[name])).forEach((bits) => {
+          if (!values.has(bits)) {
+            values.set(bits, new Set());
+          }
+          values.get(bits).add(row[output]);
+        });
+      });
+      return values;
+    }
+
+    function expandBits(source) {
+      let combinations = [""];
+      source.forEach((bit) => {
+        const choices = bit === "X" ? ["0", "1"] : [bit];
+        combinations = combinations.flatMap((prefix) =>
+          choices.map((choice) => prefix + choice));
+      });
+      return combinations;
+    }
+
+    function buildMaps(inputs, values) {
+      const innerCount = Math.min(4, inputs.length);
+      const innerRowCount = Math.floor(innerCount / 2);
+      const innerColumnCount = innerCount - innerRowCount;
+      const outerCount = inputs.length - innerCount;
+      const outerRowCount = Math.floor(outerCount / 2);
+      const outerColumnCount = outerCount - outerRowCount;
+
+      const innerRows = gray[innerRowCount];
+      const innerColumns = gray[innerColumnCount];
+      const outerRows = gray[outerRowCount];
+      const outerColumns = gray[outerColumnCount];
+      const trackColumns =
+        `repeat(${outerColumns.length}, minmax(18rem, 1fr))`;
+
+      const container = document.createElement("div");
+      const maps = document.createElement("div");
+      maps.className = "maps";
+      maps.style.gridTemplateColumns = trackColumns;
+
+      outerRows.forEach((outerRow) => {
+        outerColumns.forEach((outerColumn) => {
+          maps.append(buildMap({
+            inputs,
+            values,
+            innerRows,
+            innerColumns,
+            innerRowCount,
+            innerColumnCount,
+            outerRow,
+            outerColumn,
+            outerRowCount,
+          }));
+        });
+      });
+
+      if (outerCount === 0) {
+        container.append(maps);
+        return container;
+      }
+
+      const rowNames = inputs.slice(4, 4 + outerRowCount);
+      const columnNames = inputs.slice(4 + outerRowCount);
+      const layout = document.createElement("div");
+      layout.className = "outer-layout";
+
+      const corner = buildAxisCorner(
+        document.createElement("div"),
+        rowNames,
+        columnNames,
+      );
+      corner.classList.add("outer-corner");
+
+      const columns = document.createElement("div");
+      columns.className = "outer-columns";
+      columns.style.gridTemplateColumns = trackColumns;
+      outerColumns.forEach((bits) => {
+        const label = document.createElement("span");
+        label.className = "outer-bit";
+        label.textContent = bits;
+        columns.append(label);
+      });
+
+      const rows = document.createElement("div");
+      rows.className = "outer-rows";
+      rows.style.gridTemplateRows =
+        `repeat(${outerRows.length}, minmax(0, 1fr))`;
+      outerRows.forEach((bits) => {
+        const label = document.createElement("span");
+        label.className = "outer-bit";
+        label.textContent = bits;
+        rows.append(label);
+      });
+
+      layout.append(corner, columns, rows, maps);
+      container.append(layout);
+      return container;
+    }
+
+    function buildAxisCorner(element, rowNames, columnNames) {
+      element.classList.add("axis-corner");
+      element.setAttribute(
+        "aria-label",
+        axisText("Rows", rowNames) + "; " +
+          axisText("Columns", columnNames),
+      );
+      const rowLabel = document.createElement("span");
+      rowLabel.className = "corner-row";
+      rowLabel.textContent = rowNames.join(" ");
+      const columnLabel = document.createElement("span");
+      columnLabel.className = "corner-column";
+      columnLabel.textContent = columnNames.join(" ");
+      element.append(rowLabel, columnLabel);
+      return element;
+    }
+
+    function buildMap(settings) {
+      const panel = document.createElement("section");
+      panel.className = "map-panel";
+
+      const title = document.createElement("div");
+      title.className = "map-title";
+      const outerBits = settings.outerRow + settings.outerColumn;
+      const outerNames = settings.inputs.slice(4);
+      title.textContent = outerNames.map(
+        (name, index) => `${name}=${outerBits[index]}`,
+      ).join(", ");
+      panel.append(title);
+
+
+      const tableElement = document.createElement("table");
+      const head = tableElement.createTHead().insertRow();
+      const rowNames = settings.inputs.slice(0, settings.innerRowCount);
+      const columnNames = settings.inputs.slice(
+        settings.innerRowCount,
+        settings.innerRowCount + settings.innerColumnCount,
+      );
+      const corner = buildAxisCorner(
+        document.createElement("th"),
+        rowNames,
+        columnNames,
+      );
+      corner.classList.add("corner");
+      head.append(corner);
+      settings.innerColumns.forEach((bits) => {
+        const header = document.createElement("th");
+        header.scope = "col";
+        header.textContent = bits;
+        head.append(header);
+      });
+
+      const body = tableElement.createTBody();
+      settings.innerRows.forEach((innerRow) => {
+        const row = body.insertRow();
+        const header = document.createElement("th");
+        header.scope = "row";
+        header.textContent = innerRow;
+        row.append(header);
+
+        settings.innerColumns.forEach((innerColumn) => {
+          const key = innerRow + innerColumn + settings.outerRow +
+            settings.outerColumn;
+          const states = settings.values.get(key) ?? new Set();
+          const cell = row.insertCell();
+          if (states.size > 1) {
+            cell.className = "conflict";
+            cell.textContent = "!";
+            cell.title = "Conflicting 0 and 1 rows";
+          } else if (states.has("1")) {
+            cell.className = "on";
+            cell.textContent = "1";
+          }
+        });
+      });
+      panel.append(tableElement);
+      return panel;
+    }
+
+    function axisText(label, names) {
+      return `${label}: ${names.length ? names.join(", ") : "—"}`;
+    }
+
+    function showMessage(text, style) {
+      message.textContent = text;
+      message.className = style;
+    }
+  </script>
+</body>
+</html>
