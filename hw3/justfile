@@ -1,0 +1,55 @@
+set shell := ["bash", "-euc"]
+
+std := "--std=08"
+build := ".build"
+
+default:
+    @just --list
+
+test target:
+    @case "{{target}}" in \
+        ic) just _test-ic ;; \
+        uni) just _test-uni ;; \
+        bcd) just _test-bcd ;; \
+        *) \
+            echo "Unknown test: {{target}}" >&2; \
+            echo "Available tests: ic uni bcd" >&2; \
+            exit 2 ;; \
+    esac
+
+_test-ic:
+    rm -rf {{build}}/ic
+    mkdir -p {{build}}/ic
+    ghdl -a {{std}} --workdir={{build}}/ic dff_reset.vhd
+    ghdl -a {{std}} --workdir={{build}}/ic ic74194.vhd
+    ghdl -a {{std}} --workdir={{build}}/ic testbench/ic74194_tb.vhd
+    ghdl -e {{std}} --workdir={{build}}/ic TESTBENCH_FOR_ic74194
+    ghdl -r {{std}} --workdir={{build}}/ic \
+        TESTBENCH_FOR_ic74194 --assert-level=error --stop-time=1ms --wave=wave.ghw
+
+_test-uni:
+    rm -rf {{build}}/uni
+    mkdir -p {{build}}/uni
+    ghdl -a {{std}} --workdir={{build}}/uni dff_reset.vhd
+    ghdl -a {{std}} --workdir={{build}}/uni ic74194.vhd
+    ghdl -a {{std}} --workdir={{build}}/uni UniversalSR8.vhd
+    ghdl -a {{std}} --workdir={{build}}/uni \
+        testbench/UniversalSR8_tb.vhd
+    ghdl -e {{std}} --workdir={{build}}/uni \
+        TESTBENCH_FOR_UniversalSR8
+    ghdl -r {{std}} --workdir={{build}}/uni \
+        TESTBENCH_FOR_UniversalSR8 --assert-level=error --stop-time=1ms --wave=wave.ghw
+
+_test-bcd:
+    rm -rf {{build}}/bcd
+    mkdir -p {{build}}/bcd
+    ghdl -a {{std}} --workdir={{build}}/bcd BCD2Bin.vhd
+    ghdl -a {{std}} --workdir={{build}}/bcd \
+        testbench/BCD2Binary8_TB.vhd
+    ghdl -e {{std}} --workdir={{build}}/bcd \
+        TESTBENCH_FOR_BCD2Binary8
+    ghdl -r {{std}} --workdir={{build}}/bcd \
+        TESTBENCH_FOR_BCD2Binary8 --assert-level=error --stop-time=3us
+
+clean:
+    rm -rf {{build}}
