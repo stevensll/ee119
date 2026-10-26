@@ -1,0 +1,12 @@
+# GHDL compilation artifacts
+work-obj*.cf
+*.o
+
+# Simulation waveforms
+*.ghw
+*.vcd
+*.fst
+*.wlf
+
+# Generated synthesis netlists
+*_synth.vhdl
